@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-import os
+import re
 
 import aiofiles
 from environs import Env
@@ -38,8 +38,11 @@ async def send_chat_message(host, port, message, account_hash):
 
 
 async def authorise(reader, writer, account_hash):
-    if account_hash is None:
+    clean_hash = sanitize_input(account_hash)
+    if not clean_hash:
+        logger.error("Invalid token format")
         return
+
     try:
         writer.write(f"{account_hash}\n".encode())
         await writer.drain()
@@ -55,13 +58,23 @@ async def authorise(reader, writer, account_hash):
 
 
 async def submit_message(reader, writer, message):
+    clean_message = sanitize_input(message)
+    if not clean_message:
+        logger.error("Message cannot be empty")
+        return
     try:
-        writer.write(f"{message}\n\n".encode())
+        writer.write(f"{clean_message}\n\n".encode())
         await writer.drain()
         logger.debug(await reader.readline())
     except ConnectionError as e:
         logger.error(f"Connection error during auth: {e}")
         raise
+
+
+def sanitize_input(text):
+    if text is None:
+        return
+    return re.sub(r"[\r\n]+", " ", text).strip()
 
 
 async def main():
@@ -77,7 +90,7 @@ async def main():
         logger.info("Authorization file not found! run `python3 register.py`")
         return
     account_hash = user_token.get("account_hash", None)
-    message = "HELLO WORLD!"
+    message = "HELLO"
     await send_chat_message(host, port, message, account_hash)
 
 

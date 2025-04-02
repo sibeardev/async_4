@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import logging
@@ -77,6 +78,30 @@ def sanitize_input(text):
     return re.sub(r"[\r\n]+", " ", text).strip()
 
 
+def parse_args(host, port):
+    parser = argparse.ArgumentParser(
+        description="Клиент для подключения к чату",
+    )
+    parser.add_argument(
+        "--host",
+        default=host,
+        help="Хост сервера чата",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=port,
+        help="Порт сервера чата",
+    )
+    parser.add_argument(
+        "--message",
+        required=True,
+        type=str,
+        help="Текст сообщения",
+    )
+    return parser.parse_args()
+
+
 async def main():
     env = Env()
     env.read_env()
@@ -90,8 +115,8 @@ async def main():
         logger.info("Authorization file not found! run `python3 register.py`")
         return
     account_hash = user_token.get("account_hash", None)
-    message = "HELLO"
-    await send_chat_message(host, port, message, account_hash)
+    args = parse_args(host, port)
+    await send_chat_message(args.host, args.port, args.message, account_hash)
 
 
 if __name__ == "__main__":

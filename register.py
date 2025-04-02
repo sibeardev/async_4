@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import logging
@@ -12,7 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def register(host, port, nickname="anonymous"):
+async def register(host, port, nickname):
     try:
         reader, writer = await asyncio.open_connection(host, port)
         try:
@@ -43,10 +44,34 @@ async def register(host, port, nickname="anonymous"):
         logger.debug("Connection closed")
 
 
+def parse_args(host, port):
+    parser = argparse.ArgumentParser(
+        description="Клиент для регистрации в чате",
+    )
+    parser.add_argument(
+        "--host",
+        default=host,
+        help="Хост сервера чата",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=port,
+        help="Порт сервера чата",
+    )
+    parser.add_argument(
+        "--nickname",
+        type=str,
+        help="Имя пользователя",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     env = Env()
     env.read_env()
     host = env.str("HOST")
     port = env.int("POSTING_PORT", 5050)
-
-    account_hash = asyncio.run(register(host, port))
+    args = parse_args(host, port)
+    nickname = args.nickname if args.nickname else "anonymous"
+    account_hash = asyncio.run(register(args.host, args.port, nickname))

@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 
 import aiofiles
+from environs import Env
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -44,19 +45,19 @@ async def listen_to_chat(host, port, file_path):
         logger.debug("Connection closed")
 
 
-def parse_args():
+def parse_args(host, port):
     parser = argparse.ArgumentParser(
         description="Клиент для подключения к чату",
     )
     parser.add_argument(
         "--host",
-        default="minechat.dvmn.org",
+        default=host,
         help="Хост сервера чата",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=5000,
+        default=port,
         help="Порт сервера чата",
     )
     parser.add_argument(
@@ -69,5 +70,10 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    env = Env()
+    env.read_env()
+    host = env.str("HOST")
+    port = env.int("CHAT_PORT", 5000)
+
+    args = parse_args(host, port)
     asyncio.run(listen_to_chat(args.host, args.port, args.history))

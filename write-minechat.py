@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+import os
 
+import aiofiles
 from environs import Env
 
 logging.basicConfig(
@@ -49,11 +51,22 @@ async def write_to_chat(host, port, message, account_hash):
         logger.debug("Connection closed")
 
 
-if __name__ == "__main__":
+async def main():
     env = Env()
     env.read_env()
     host = env.str("HOST")
     port = env.int("POSTING_PORT", 5050)
-    account_hash = env.str("ACCOUNT_HASH")
+
+    try:
+        async with aiofiles.open("token.json", "r") as file:
+            user_token = json.loads(await file.read())
+    except FileNotFoundError:
+        logger.info("Authorization file not found! run `python3 register.py`")
+        return
+
     message = "HELLO WORLD!"
-    asyncio.run(write_to_chat(host, port, message, account_hash))
+    await write_to_chat(host, port, message, user_token["account_hash"])
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

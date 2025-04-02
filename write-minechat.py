@@ -13,31 +13,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def write_to_chat(host, port, message, account_hash):
+async def send_chat_message(host, port, message, account_hash):
     try:
         reader, writer = await asyncio.open_connection(host, port)
-        logger.debug(await reader.readline())
-
         try:
-            if account_hash:
-                writer.write(f"{account_hash}\n".encode())
-                await writer.drain()
-
-                raw_response = await reader.readline()
-                response_text = raw_response.decode().strip()
-                auth_result = json.loads(response_text)
-                if auth_result is None:
-                    logger.warning(
-                        "Неизвестный токен. Проверьте его или зарегистрируйте заново."
-                    )
-                    return
-                logger.debug(response_text)
+            logger.debug(await reader.readline())
+            if await authorise(reader, writer, account_hash) is None:
+                logger.error("Unknown token. Check it or register it again.")
+                return
 
             logger.debug(await reader.readline())
-
-            writer.write(f"{message}\n\n".encode())
-            await writer.drain()
-            logger.debug(await reader.readline())
+            await submit_message(reader, writer, message)
 
         except (ConnectionError, asyncio.IncompleteReadError) as e:
             logger.error(f"Connection error: {e}")
@@ -49,6 +35,33 @@ async def write_to_chat(host, port, message, account_hash):
         writer.close()
         await writer.wait_closed()
         logger.debug("Connection closed")
+
+
+async def authorise(reader, writer, account_hash):
+    if account_hash is None:
+        return
+    try:
+        writer.write(f"{account_hash}\n".encode())
+        await writer.drain()
+
+        raw_response = await reader.readline()
+        response_text = raw_response.decode().strip()
+
+    except ConnectionError as e:
+        logger.error(f"Connection error during auth: {e}")
+        raise
+
+    return json.loads(response_text)
+
+
+async def submit_message(reader, writer, message):
+    try:
+        writer.write(f"{message}\n\n".encode())
+        await writer.drain()
+        logger.debug(await reader.readline())
+    except ConnectionError as e:
+        logger.error(f"Connection error during auth: {e}")
+        raise
 
 
 async def main():
@@ -63,9 +76,9 @@ async def main():
     except FileNotFoundError:
         logger.info("Authorization file not found! run `python3 register.py`")
         return
-
+    account_hash = user_token.get("account_hash", None)
     message = "HELLO WORLD!"
-    await write_to_chat(host, port, message, user_token["account_hash"])
+    await send_chat_message(host, port, message, account_hash)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import logging
 from datetime import datetime
@@ -11,12 +12,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def listen_to_chat():
+async def listen_to_chat(host, port, file_path):
     try:
-        reader, writer = await asyncio.open_connection("minechat.dvmn.org", 5000)
+        reader, writer = await asyncio.open_connection(host, port)
         logger.info("Установлено соединение")
 
-        async with aiofiles.open("chat_log.txt", mode="ab") as log_file:
+        async with aiofiles.open(file_path, mode="ab") as log_file:
             while True:
                 try:
                     message_bytes = await reader.readline()
@@ -34,11 +35,39 @@ async def listen_to_chat():
                     logger.error(f"Connection error: {e}")
                     break
 
+    except asyncio.CancelledError:
+        logger.debug("Chat parsing stopped")
+
     finally:
         writer.close()
         await writer.wait_closed()
         logger.debug("Connection closed")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Клиент для подключения к чату",
+    )
+    parser.add_argument(
+        "--host",
+        default="minechat.dvmn.org",
+        help="Хост сервера чата",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Порт сервера чата",
+    )
+    parser.add_argument(
+        "--history",
+        type=str,
+        default="minechat.history",
+        help="Путь к файлу для сохранения истории чата",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    asyncio.run(listen_to_chat())
+    args = parse_args()
+    asyncio.run(listen_to_chat(args.host, args.port, args.history))

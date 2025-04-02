@@ -8,4 +8,5 @@ env.bak/
 venv.bak/
 
 .vscode/
-chat_log.txt
+*.history
+token.json

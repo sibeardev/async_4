@@ -80,24 +80,24 @@ def sanitize_input(text):
 
 def parse_args(host, port):
     parser = argparse.ArgumentParser(
-        description="Клиент для подключения к чату",
+        description="Client for connecting to the chat room",
     )
     parser.add_argument(
         "--host",
         default=host,
-        help="Хост сервера чата",
+        help="Chat Server Host",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=port,
-        help="Порт сервера чата",
+        help="Chat Server Port",
     )
     parser.add_argument(
         "--message",
         required=True,
         type=str,
-        help="Текст сообщения",
+        help="Message Text",
     )
     return parser.parse_args()
 

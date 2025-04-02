@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 async def listen_to_chat(host, port, file_path):
     try:
         reader, writer = await asyncio.open_connection(host, port)
-        logger.info("Установлено соединение")
 
         async with aiofiles.open(file_path, mode="ab") as log_file:
             while True:
@@ -47,24 +46,24 @@ async def listen_to_chat(host, port, file_path):
 
 def parse_args(host, port):
     parser = argparse.ArgumentParser(
-        description="Клиент для подключения к чату",
+        description="Client for connecting to the chat room",
     )
     parser.add_argument(
         "--host",
         default=host,
-        help="Хост сервера чата",
+        help="Chat Server Port",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=port,
-        help="Порт сервера чата",
+        help="Chat Server Port",
     )
     parser.add_argument(
         "--history",
         type=str,
         default="minechat.history",
-        help="Путь к файлу для сохранения истории чата",
+        help="File path for saving the chat history",
     )
     return parser.parse_args()
 

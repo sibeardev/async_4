@@ -46,23 +46,23 @@ async def register(host, port, nickname):
 
 def parse_args(host, port):
     parser = argparse.ArgumentParser(
-        description="Клиент для регистрации в чате",
+        description="Client for chat registration",
     )
     parser.add_argument(
         "--host",
         default=host,
-        help="Хост сервера чата",
+        help="Chat Server Host",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=port,
-        help="Порт сервера чата",
+        help="Chat Server Port",
     )
     parser.add_argument(
         "--nickname",
         type=str,
-        help="Имя пользователя",
+        help="User Name",
     )
     return parser.parse_args()
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 from environs import Env
@@ -19,12 +20,23 @@ async def write_to_chat(host, port, message, account_hash):
             if account_hash:
                 writer.write(f"{account_hash}\n".encode())
                 await writer.drain()
+
+                raw_response = await reader.readline()
+                response_text = raw_response.decode().strip()
+                auth_result = json.loads(response_text)
+                if auth_result is None:
+                    logger.warning(
+                        "Неизвестный токен. Проверьте его или зарегистрируйте заново."
+                    )
+                    return
+                logger.debug(response_text)
+
             logger.debug(await reader.readline())
 
             writer.write(f"{message}\n\n".encode())
             await writer.drain()
             logger.debug(await reader.readline())
-            
+
         except (ConnectionError, asyncio.IncompleteReadError) as e:
             logger.error(f"Connection error: {e}")
 

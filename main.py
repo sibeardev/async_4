@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 
@@ -6,6 +7,7 @@ import aiofiles
 from environs import Env
 
 import gui
+from send_message import authorise
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -69,12 +71,53 @@ async def load_chat_history(filepath: str, queue: asyncio.Queue):
         logger.error(f"Error when loading history: {str(e)}")
 
 
+async def get_account_hash():
+    try:
+        async with aiofiles.open("token.json", "r") as file:
+            user_token = json.loads(await file.read())
+    except FileNotFoundError:
+        logger.info("Authorization file not found! run `python3 register.py`")
+        return
+
+    return user_token.get("account_hash", None)
+
+
+async def authorization(host, port, account_hash):
+    try:
+        reader, writer = await asyncio.open_connection(host, port)
+        try:
+            logger.debug(await reader.readline())
+            auth = await authorise(reader, writer, account_hash)
+            logger.debug(await reader.readline())
+
+            return auth
+
+        except (ConnectionError, asyncio.IncompleteReadError) as e:
+            logger.error(f"Connection error: {e}")
+
+    except asyncio.CancelledError:
+        logger.debug("Chat stopped")
+
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        logger.debug("Connection closed")
+
+
 async def main():
     env = Env()
     env.read_env()
     host = env.str("HOST")
     port = env.int("CHAT_PORT", 5000)
+    post_port = env.int("POSTING_PORT", 5050)
     filepath = "minechat.history"
+    account_hash = await get_account_hash()
+
+    auth = await authorization(host, post_port, account_hash)
+    if auth:
+        logger.info(f"Authorization has been performed. User {auth.get("nickname")}")
+    else:
+        logger.debug("Not authorized")
 
     messages_queue = asyncio.Queue()
     sending_queue = asyncio.Queue()

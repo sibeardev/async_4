@@ -7,7 +7,7 @@ import aiofiles
 from environs import Env
 
 import gui
-from send_message import authorise
+from send_message import authorise, send_chat_message
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -45,6 +45,17 @@ async def read_msgs(
         writer.close()
         await writer.wait_closed()
         logger.debug("Connection closed")
+
+
+async def send_msgs(
+    host: str, port: int, account_hash: str, sending_queue: asyncio.Queue
+):
+    while True:
+        message = await sending_queue.get()
+        try:
+            await send_chat_message(host, port, message, account_hash)
+        except Exception as e:
+            logger.error(f"Error when saving a message: {e}")
 
 
 async def save_messages(filepath: str, queue: asyncio.Queue):
@@ -129,6 +140,7 @@ async def main():
         gui.draw(messages_queue, sending_queue, status_updates_queue),
         read_msgs(host, port, messages_queue, history_queue),
         save_messages(filepath, history_queue),
+        send_msgs(host, post_port, account_hash, sending_queue),
     )
 
 

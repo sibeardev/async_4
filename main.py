@@ -18,11 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 async def read_msgs(
-    host: str, port: int, messages_queue: asyncio.Queue, history_queue: asyncio.Queue
+    host: str,
+    port: int,
+    messages_queue: asyncio.Queue,
+    history_queue: asyncio.Queue,
+    status_updates_queue: asyncio.Queue,
 ):
+    status_updates_queue.put_nowait(gui.ReadConnectionStateChanged.INITIATED)
     try:
         reader, writer = await asyncio.open_connection(host, port)
-
+        status_updates_queue.put_nowait(gui.ReadConnectionStateChanged.ESTABLISHED)
         while True:
             try:
                 message_bytes = await reader.readline()
@@ -46,15 +51,22 @@ async def read_msgs(
         writer.close()
         await writer.wait_closed()
         logger.debug("Connection closed")
+        status_updates_queue.put_nowait(gui.ReadConnectionStateChanged.CLOSED)
 
 
 async def send_msgs(
-    host: str, port: int, account_hash: str, sending_queue: asyncio.Queue
+    host: str,
+    port: int,
+    account_hash: str,
+    sending_queue: asyncio.Queue,
+    status_updates_queue: asyncio.Queue,
 ):
     while True:
         message = await sending_queue.get()
         try:
-            await send_chat_message(host, port, message, account_hash)
+            await send_chat_message(
+                host, port, message, account_hash, status_updates_queue
+            )
         except Exception as e:
             logger.error(f"Error when posting a message: {e}")
 
@@ -128,9 +140,16 @@ async def main():
     filepath = "minechat.history"
     account_hash = await get_account_hash()
 
+    messages_queue = asyncio.Queue()
+    sending_queue = asyncio.Queue()
+    status_updates_queue = asyncio.Queue()
+    history_queue = asyncio.Queue()
+
     try:
         auth = await authorization(host, post_port, account_hash)
         if auth:
+            event = gui.NicknameReceived(auth.get("nickname"))
+            status_updates_queue.put_nowait(event)
             logger.info(f"Authorization has been performed. User {auth.get("nickname")}")
     except InvalidToken:
         gui.show_message_box(
@@ -138,17 +157,12 @@ async def main():
         )
         return
 
-    messages_queue = asyncio.Queue()
-    sending_queue = asyncio.Queue()
-    status_updates_queue = asyncio.Queue()
-    history_queue = asyncio.Queue()
-
     await load_chat_history(filepath, messages_queue)
     await asyncio.gather(
         gui.draw(messages_queue, sending_queue, status_updates_queue),
-        read_msgs(host, port, messages_queue, history_queue),
+        read_msgs(host, port, messages_queue, history_queue, status_updates_queue),
         save_messages(filepath, history_queue),
-        send_msgs(host, post_port, account_hash, sending_queue),
+        send_msgs(host, post_port, account_hash, sending_queue, status_updates_queue),
     )
 
 

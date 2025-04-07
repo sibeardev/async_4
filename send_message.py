@@ -7,6 +7,7 @@ import re
 import aiofiles
 from environs import Env
 
+import gui
 from exceptions import InvalidToken
 
 logging.basicConfig(
@@ -16,9 +17,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def send_chat_message(host, port, message, account_hash):
+async def send_chat_message(host, port, message, account_hash, status_updates_queue):
+    status_updates_queue.put_nowait(gui.SendingConnectionStateChanged.INITIATED)
     try:
         reader, writer = await asyncio.open_connection(host, port)
+        status_updates_queue.put_nowait(gui.SendingConnectionStateChanged.ESTABLISHED)
         try:
             logger.debug(await reader.readline())
             await authorise(reader, writer, account_hash)
@@ -38,6 +41,7 @@ async def send_chat_message(host, port, message, account_hash):
         writer.close()
         await writer.wait_closed()
         logger.debug("Connection closed")
+        status_updates_queue.put_nowait(gui.SendingConnectionStateChanged.CLOSED)
 
 
 async def authorise(reader, writer, account_hash):

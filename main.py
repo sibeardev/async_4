@@ -7,6 +7,7 @@ import aiofiles
 from environs import Env
 
 import gui
+from exceptions import InvalidToken
 from send_message import authorise, send_chat_message
 
 logging.basicConfig(
@@ -55,7 +56,7 @@ async def send_msgs(
         try:
             await send_chat_message(host, port, message, account_hash)
         except Exception as e:
-            logger.error(f"Error when saving a message: {e}")
+            logger.error(f"Error when posting a message: {e}")
 
 
 async def save_messages(filepath: str, queue: asyncio.Queue):
@@ -105,6 +106,9 @@ async def authorization(host, port, account_hash):
 
         except (ConnectionError, asyncio.IncompleteReadError) as e:
             logger.error(f"Connection error: {e}")
+        except InvalidToken as e:
+            logger.error(f"Authorization error: {e}")
+            raise
 
     except asyncio.CancelledError:
         logger.debug("Chat stopped")
@@ -124,11 +128,15 @@ async def main():
     filepath = "minechat.history"
     account_hash = await get_account_hash()
 
-    auth = await authorization(host, post_port, account_hash)
-    if auth:
-        logger.info(f"Authorization has been performed. User {auth.get("nickname")}")
-    else:
-        logger.debug("Not authorized")
+    try:
+        auth = await authorization(host, post_port, account_hash)
+        if auth:
+            logger.info(f"Authorization has been performed. User {auth.get("nickname")}")
+    except InvalidToken:
+        gui.show_message_box(
+            "Invalid token", "Check the token. The server didn't recognize it"
+        )
+        return
 
     messages_queue = asyncio.Queue()
     sending_queue = asyncio.Queue()

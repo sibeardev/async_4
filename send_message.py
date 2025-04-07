@@ -7,6 +7,8 @@ import re
 import aiofiles
 from environs import Env
 
+from exceptions import InvalidToken
+
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -19,15 +21,15 @@ async def send_chat_message(host, port, message, account_hash):
         reader, writer = await asyncio.open_connection(host, port)
         try:
             logger.debug(await reader.readline())
-            if await authorise(reader, writer, account_hash) is None:
-                logger.error("Unknown token. Check it or register it again.")
-                return
+            await authorise(reader, writer, account_hash)
 
             logger.debug(await reader.readline())
             await submit_message(reader, writer, message)
 
         except (ConnectionError, asyncio.IncompleteReadError) as e:
             logger.error(f"Connection error: {e}")
+        except InvalidToken as e:
+            logger.error(f"Authorization error: {e}")
 
     except asyncio.CancelledError:
         logger.debug("Chat stopped")
@@ -39,23 +41,29 @@ async def send_chat_message(host, port, message, account_hash):
 
 
 async def authorise(reader, writer, account_hash):
-    clean_hash = sanitize_input(account_hash)
-    if not clean_hash:
-        logger.error("Invalid token format")
-        return
 
     try:
-        writer.write(f"{account_hash}\n".encode())
-        await writer.drain()
+        if account_hash is None:
+            raise InvalidToken("Empty token")
 
+        clean_hash = sanitize_input(account_hash)
+        if not clean_hash:
+            raise InvalidToken("Invalid token format")
+
+        writer.write(f"{clean_hash}\n".encode())
+        await writer.drain()
         raw_response = await reader.readline()
         response_text = raw_response.decode().strip()
+        auth = json.loads(response_text)
+
+        if auth is None:
+            raise InvalidToken("Unknown token")
 
     except ConnectionError as e:
         logger.error(f"Connection error during auth: {e}")
         raise
 
-    return json.loads(response_text)
+    return auth
 
 
 async def submit_message(reader, writer, message):
@@ -73,8 +81,6 @@ async def submit_message(reader, writer, message):
 
 
 def sanitize_input(text):
-    if text is None:
-        return
     return re.sub(r"[\r\n]+", " ", text).strip()
 
 

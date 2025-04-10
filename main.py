@@ -152,6 +152,27 @@ async def watch_for_connection(watchdog_queue: asyncio.Queue, timeout: int = 10)
             raise ConnectionError("Server timeout")
 
 
+async def ping_pong(
+    host: str,
+    port: int,
+    account_hash: str,
+    status_updates_queue: asyncio.Queue,
+    watchdog_queue: asyncio.Queue,
+    timeout: int = 10,
+    delay: int = 5,
+):
+    while True:
+        try:
+            async with asyncio.timeout(timeout):
+                await send_chat_message(
+                    host, port, "", account_hash, status_updates_queue
+                )
+            watchdog_queue.put_nowait("Ping message sent")
+            await asyncio.sleep(delay)
+        except Exception as e:
+            logger.error(f"Error when posting a message: {e}")
+
+
 async def handle_connection(host, port, post_port, account_hash, filepath):
 
     messages_queue = asyncio.Queue()
@@ -196,6 +217,14 @@ async def handle_connection(host, port, post_port, account_hash, filepath):
                     watchdog_queue,
                 )
                 tg.start_soon(watch_for_connection, watchdog_queue)
+                tg.start_soon(
+                    ping_pong,
+                    host,
+                    post_port,
+                    account_hash,
+                    status_updates_queue,
+                    watchdog_queue,
+                )
 
         except ConnectionError as e:
             logger.warning(f"Connection lost: {e}")

@@ -1,6 +1,6 @@
 # Чат-клиент для minechat
 
-Асинхронный клиент для отправки и получения сообщений чата minechat
+Асинхронный GUI клиент для отправки и получения сообщений чата minechat
 
 ## Установка
 
@@ -29,24 +29,18 @@ export POSTING_PORT=5050  # Для отправки сообщений
 
 ## Использование
 
-### Регистрация в чате
+### Запуск чата
 
 ```bash
-python register.py --username [USERNAME]
+python main.py [-h] [--host HOST] [--read_port READ_PORT] [--post_port POST_PORT] [--history HISTORY]
 ```
 
-### Отправка сообщения
-
-```bash
-python send_message.py --message [MESSAGE_TEXT]
 ```
-
-### Просмотр чата
-
-```bash
-python read_chat.py --history [FILE_HISTORY_PATH]
+--host (по умолчанию: minechat.dvmn.org) — адрес сервера.
+--read_port (по умолчанию: 5000) — порт для чтения сообщений.
+--post_port (по умолчанию: 5050) — порт для отправки сообщений.
+--history (необязательный) — путь к файлу для сохранения истории чата.
 ```
-
 # Цели проекта
 
 Код написан в учебных целях — это урок в курсе по Python и веб-разработке на сайте [Devman](https://dvmn.org).

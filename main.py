@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import sys
 from datetime import datetime
@@ -9,9 +8,9 @@ import anyio
 from environs import Env
 
 import gui
+from chat_core import authorization, register, send_chat_message
 from exceptions import InvalidToken
-from register import register
-from send_message import authorise, send_chat_message
+from utils import get_account_hash, load_chat_history
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -94,55 +93,6 @@ async def save_messages(filepath: str, queue: asyncio.Queue):
                 logger.error(f"Error when saving a message: {e}")
 
 
-async def load_chat_history(filepath: str, queue: asyncio.Queue):
-    try:
-        async with aiofiles.open(filepath, mode="r", encoding="utf-8") as history_file:
-            async for line in history_file:
-                cleaned_line = line.strip()
-                if cleaned_line:
-                    await queue.put(cleaned_line)
-    except FileNotFoundError:
-        logger.warning(f"History file not found: {filepath}")
-    except Exception as e:
-        logger.error(f"Error when loading history: {str(e)}")
-
-
-async def get_account_hash():
-    try:
-        async with aiofiles.open("token.json", "r") as file:
-            user_token = json.loads(await file.read())
-    except FileNotFoundError:
-        logger.info("Authorization file not found! run `python3 register.py`")
-        return
-
-    return user_token.get("account_hash", None)
-
-
-async def authorization(host, port, account_hash):
-    try:
-        reader, writer = await asyncio.open_connection(host, port)
-        try:
-            logger.debug(await reader.readline())
-            auth = await authorise(reader, writer, account_hash)
-            logger.debug(await reader.readline())
-
-            return auth
-
-        except (ConnectionError, asyncio.IncompleteReadError) as e:
-            logger.error(f"Connection error: {e}")
-        except InvalidToken as e:
-            logger.error(f"Authorization error: {e}")
-            raise
-
-    except asyncio.CancelledError:
-        logger.debug("Chat stopped")
-
-    finally:
-        writer.close()
-        await writer.wait_closed()
-        logger.debug("Connection closed")
-
-
 async def watch_for_connection(watchdog_queue: asyncio.Queue, timeout: int = 10):
     while True:
         try:
@@ -175,7 +125,7 @@ async def ping_pong(
             logger.error(f"Error when posting a message: {e}")
 
 
-async def handle_connection(host, port, post_port, account_hash, filepath):
+async def handle_connection(host, read_port, post_port, account_hash, filepath):
 
     messages_queue = asyncio.Queue()
     sending_queue = asyncio.Queue()
@@ -202,7 +152,7 @@ async def handle_connection(host, port, post_port, account_hash, filepath):
                 tg.start_soon(
                     read_msgs,
                     host,
-                    port,
+                    read_port,
                     messages_queue,
                     history_queue,
                     status_updates_queue,
@@ -243,8 +193,8 @@ async def main():
     env = Env()
     env.read_env()
     host = env.str("HOST")
-    port = env.int("CHAT_PORT", 5000)
-    post_port = env.int("POSTING_PORT", 5050)
+    read_port = env.int("READ_PORT", 5000)
+    post_port = env.int("POST_PORT", 5050)
     filepath = "minechat.history"
     account_hash = await get_account_hash()
 
@@ -253,7 +203,7 @@ async def main():
         account_hash = await register(host, post_port, nickname)
 
     try:
-        await handle_connection(host, port, post_port, account_hash, filepath)
+        await handle_connection(host, read_port, post_port, account_hash, filepath)
     except (gui.TkAppClosed, KeyboardInterrupt):
         logger.info(f"GUI Closed. Completing background tasks")
     finally:

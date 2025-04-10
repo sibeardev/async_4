@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sys
 from datetime import datetime
 
 import aiofiles
@@ -246,7 +247,12 @@ async def main():
     filepath = "minechat.history"
     account_hash = await get_account_hash()
 
-    await handle_connection(host, port, post_port, account_hash, filepath)
+    try:
+        await handle_connection(host, port, post_port, account_hash, filepath)
+    except (gui.TkAppClosed, KeyboardInterrupt):
+        logger.info(f"GUI Closed. Completing background tasks")
+    finally:
+        sys.exit(0)
 
 
 if __name__ == "__main__":

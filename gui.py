@@ -136,10 +136,15 @@ async def draw(messages_queue, sending_queue, status_updates_queue):
 
     conversation_panel = ScrolledText(root_frame, wrap="none")
     conversation_panel.pack(side="top", fill="both", expand=True)
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(update_tk, root_frame)
-        tg.start_soon(update_conversation_history, conversation_panel, messages_queue)
-        tg.start_soon(update_status_panel, status_labels, status_updates_queue)
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(update_tk, root_frame)
+            tg.start_soon(
+                update_conversation_history, conversation_panel, messages_queue
+            )
+            tg.start_soon(update_status_panel, status_labels, status_updates_queue)
+    except tk.TclError:
+        raise TkAppClosed("Окно GUI было закрыто")
 
 
 def show_message_box(title, message):

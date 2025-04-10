@@ -1,7 +1,7 @@
 import asyncio
 import tkinter as tk
 from enum import Enum
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 from tkinter.scrolledtext import ScrolledText
 
 import anyio
@@ -149,3 +149,12 @@ async def draw(messages_queue, sending_queue, status_updates_queue):
 
 def show_message_box(title, message):
     messagebox.showinfo(title, message)
+
+
+def create_registration_window() -> str:
+    root = tk.Tk()
+    root.withdraw()
+    nickname = simpledialog.askstring("Minechat", "Enter your name")
+    root.destroy()
+
+    return nickname

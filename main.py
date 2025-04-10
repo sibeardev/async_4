@@ -10,6 +10,7 @@ from environs import Env
 
 import gui
 from exceptions import InvalidToken
+from register import register
 from send_message import authorise, send_chat_message
 
 logging.basicConfig(
@@ -246,6 +247,10 @@ async def main():
     post_port = env.int("POSTING_PORT", 5050)
     filepath = "minechat.history"
     account_hash = await get_account_hash()
+
+    if account_hash is None:
+        nickname = gui.create_registration_window()
+        account_hash = await register(host, post_port, nickname)
 
     try:
         await handle_connection(host, port, post_port, account_hash, filepath)

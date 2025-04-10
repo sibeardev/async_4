@@ -32,6 +32,8 @@ async def register(host, port, nickname):
                 await token_file.write(json.dumps(auth_result, indent=2))
             logger.debug(raw_response)
 
+            return auth_result["account_hash"]
+
         except (ConnectionError, asyncio.IncompleteReadError) as e:
             logger.error(f"Connection error: {e}")
 

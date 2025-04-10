@@ -10,7 +10,7 @@ from environs import Env
 import gui
 from chat_core import authorization, register, send_chat_message
 from exceptions import InvalidToken
-from utils import get_account_hash, load_chat_history
+from utils import get_account_hash, load_chat_history, parse_args
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -193,11 +193,16 @@ async def main():
     env = Env()
     env.read_env()
     host = env.str("HOST")
-    read_port = env.int("READ_PORT", 5000)
-    post_port = env.int("POST_PORT", 5050)
-    filepath = "minechat.history"
-    account_hash = await get_account_hash()
 
+    args = parse_args(host, env.int("READ_PORT", 5000), env.int("POST_PORT", 5050))
+    host, read_port, post_port, filepath = (
+        args.host,
+        args.read_port,
+        args.post_port,
+        args.history,
+    )
+
+    account_hash = await get_account_hash()
     if account_hash is None:
         nickname = gui.create_registration_window()
         account_hash = await register(host, post_port, nickname)

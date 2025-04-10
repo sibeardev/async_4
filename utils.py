@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import logging
@@ -29,3 +30,34 @@ async def get_account_hash():
         return
 
     return user_token.get("account_hash", None)
+
+
+def parse_args(host, read_port, post_port):
+    parser = argparse.ArgumentParser(
+        description="GUI Client for connecting to the chat room MINECHAT",
+    )
+    parser.add_argument(
+        "--host",
+        default=host,
+        help="Chat Server Port",
+    )
+    parser.add_argument(
+        "--read_port",
+        type=int,
+        default=read_port,
+        help="Read port",
+    )
+    parser.add_argument(
+        "--post_port",
+        type=int,
+        default=post_port,
+        help="Posting port",
+    )
+    parser.add_argument(
+        "--history",
+        type=str,
+        default="minechat.history",
+        help="File path the chat history",
+    )
+
+    return parser.parse_args()

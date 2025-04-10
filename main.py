@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 
 import aiofiles
+import anyio
 from environs import Env
 
 import gui
@@ -16,6 +17,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+watchdog_logger = logging.getLogger("watchdog")
+watchdog_logger.propagate = False
+watchdog_handler = logging.StreamHandler()
+watchdog_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+watchdog_logger.addHandler(watchdog_handler)
+
 
 async def read_msgs(
     host: str,
@@ -23,6 +30,7 @@ async def read_msgs(
     messages_queue: asyncio.Queue,
     history_queue: asyncio.Queue,
     status_updates_queue: asyncio.Queue,
+    watchdog_queue: asyncio.Queue,
 ):
     status_updates_queue.put_nowait(gui.ReadConnectionStateChanged.INITIATED)
     try:
@@ -39,7 +47,7 @@ async def read_msgs(
                 message = f"{timestamp}{message_text}"
                 messages_queue.put_nowait(message)
                 history_queue.put_nowait(message)
-
+                watchdog_queue.put_nowait("New message in chat")
             except (ConnectionError, asyncio.IncompleteReadError) as e:
                 logger.error(f"Connection error: {e}")
                 break
@@ -60,6 +68,7 @@ async def send_msgs(
     account_hash: str,
     sending_queue: asyncio.Queue,
     status_updates_queue: asyncio.Queue,
+    watchdog_queue: asyncio.Queue,
 ):
     while True:
         message = await sending_queue.get()
@@ -67,6 +76,7 @@ async def send_msgs(
             await send_chat_message(
                 host, port, message, account_hash, status_updates_queue
             )
+            watchdog_queue.put_nowait("Message sent")
         except Exception as e:
             logger.error(f"Error when posting a message: {e}")
 
@@ -131,6 +141,73 @@ async def authorization(host, port, account_hash):
         logger.debug("Connection closed")
 
 
+async def watch_for_connection(watchdog_queue: asyncio.Queue, timeout: int = 10):
+    while True:
+        try:
+            async with asyncio.timeout(timeout):
+                message = await watchdog_queue.get()
+                watchdog_logger.debug(f"Connection is alive. Source: {message}")
+        except asyncio.TimeoutError:
+            watchdog_logger.warning(f"{timeout}s timeout elapsed without activity!")
+            raise ConnectionError("Server timeout")
+
+
+async def handle_connection(host, port, post_port, account_hash, filepath):
+
+    messages_queue = asyncio.Queue()
+    sending_queue = asyncio.Queue()
+    status_updates_queue = asyncio.Queue()
+    history_queue = asyncio.Queue()
+    watchdog_queue = asyncio.Queue()
+
+    while True:
+        try:
+            auth = await authorization(host, post_port, account_hash)
+            if auth:
+                event = gui.NicknameReceived(auth.get("nickname"))
+                status_updates_queue.put_nowait(event)
+                logger.info(
+                    f"Authorization has been performed. User {auth.get('nickname')}"
+                )
+
+            await load_chat_history(filepath, messages_queue)
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(
+                    gui.draw, messages_queue, sending_queue, status_updates_queue
+                )
+                tg.start_soon(
+                    read_msgs,
+                    host,
+                    port,
+                    messages_queue,
+                    history_queue,
+                    status_updates_queue,
+                    watchdog_queue,
+                )
+                tg.start_soon(save_messages, filepath, history_queue)
+                tg.start_soon(
+                    send_msgs,
+                    host,
+                    post_port,
+                    account_hash,
+                    sending_queue,
+                    status_updates_queue,
+                    watchdog_queue,
+                )
+                tg.start_soon(watch_for_connection, watchdog_queue)
+
+        except ConnectionError as e:
+            logger.warning(f"Connection lost: {e}")
+            await anyio.sleep(5)
+            continue
+        except InvalidToken:
+            gui.show_message_box(
+                "Invalid token", "Check the token. The server didn't recognize it"
+            )
+            break
+
+
 async def main():
     env = Env()
     env.read_env()
@@ -140,30 +217,7 @@ async def main():
     filepath = "minechat.history"
     account_hash = await get_account_hash()
 
-    messages_queue = asyncio.Queue()
-    sending_queue = asyncio.Queue()
-    status_updates_queue = asyncio.Queue()
-    history_queue = asyncio.Queue()
-
-    try:
-        auth = await authorization(host, post_port, account_hash)
-        if auth:
-            event = gui.NicknameReceived(auth.get("nickname"))
-            status_updates_queue.put_nowait(event)
-            logger.info(f"Authorization has been performed. User {auth.get("nickname")}")
-    except InvalidToken:
-        gui.show_message_box(
-            "Invalid token", "Check the token. The server didn't recognize it"
-        )
-        return
-
-    await load_chat_history(filepath, messages_queue)
-    await asyncio.gather(
-        gui.draw(messages_queue, sending_queue, status_updates_queue),
-        read_msgs(host, port, messages_queue, history_queue, status_updates_queue),
-        save_messages(filepath, history_queue),
-        send_msgs(host, post_port, account_hash, sending_queue, status_updates_queue),
-    )
+    await handle_connection(host, port, post_port, account_hash, filepath)
 
 
 if __name__ == "__main__":

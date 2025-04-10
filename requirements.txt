@@ -1,2 +1,4 @@
 aiofiles==24.1.0
-environs-14.1.1
+anyio==4.9.0
+async-timeout==5.0.1
+environs==14.1.1
